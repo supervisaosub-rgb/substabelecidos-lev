@@ -1,501 +1,257 @@
 import streamlit as st
-
 from streamlit_cookies_controller import CookieController
-
 import pandas as pd
-
 from datetime import datetime, timedelta, date
-
 from io import BytesIO
-
 import json
-
 import ast
-
 import os
-
 from PIL import Image # <-- Importamos para ler a imagem da logo
 
-
-
-# Carrega a logo para a aba (usando o caminho completo da rede Z:)
-
+# Carrega a logo para a aba (usando caminho relativo do projeto)
 try:
-
-    favicon = Image.open(r"Z:\SUBSTABELECIDO\Sistema_Sub\Fotos\LOGO LEV ROXO.png")
-
+    favicon = Image.open("logo.png")
 except Exception:
-
-    favicon = "🔮" # Reserva se a rede Z: oscilar
-
-
+    favicon = "🔮" # Reserva se a imagem não for encontrada
 
 # Configuração da página deve ser o primeiro comando Streamlit executado
-
 st.set_page_config(
-
     page_title="Login | Gestão de Substabelecidos", 
-
     page_icon=favicon, 
-
     layout="wide"
-
 )
 
-
-
 # =========================================================
-
-# CONFIG GERAL (Sincronizado com a sua rede Z:)
-
+# CONFIG GERAL (Ajustado para funcionar na Nuvem/Render)
 # =========================================================
-
-
-BASE_DIR = r"Z:\SUBSTABELECIDO\Sistema_Sub"
-
+# Mudamos para o próprio diretório do projeto no GitHub/Render
+BASE_DIR = "." 
 ARQUIVO_BASE = os.path.join(BASE_DIR, "base_sub.xlsx")
-
 ARQUIVO_HIST = os.path.join(BASE_DIR, "historico_sub.xlsx")
 
-
 # =========================================================
-
 # LOGIN COM CONTROLE DE PERFIS E COOKIES (TRAVA F5 CORRIGIDA)
-
 # =========================================================
-
 
 # Inicializa o controlador de cookies
-
 controller = CookieController()
 
-
-
 USUARIOS = {
-
     "ana.costa@levnegocios.com.br": "Lev@SUB28",
-
     "mariana.santos@levnegocios.com.br": "Lev@SUB28",
-
     "gustavo.cintra@levnegocios.com.br": "Lev@SUB28"
-
 }
-
-
 
 USUARIO_NOME = {
-
     "ana.costa@levnegocios.com.br": "Ana Laura",
-
     "mariana.santos@levnegocios.com.br": "Mariana Santos",
-
     "gustavo.cintra@levnegocios.com.br": "Gustavo Cintra"
-
 }
 
-
-
 EMAILS_SUPERVISAO = [
-
     "ana.costa@levnegocios.com.br"
-
 ]
 
-
-
 # Inicialização padrão do Session State
-
 if "logado" not in st.session_state:
-
     st.session_state.logado = False
-
 if "usuario" not in st.session_state:
-
     st.session_state.usuario = ""
-
 if "nome_usuario" not in st.session_state:
-
     st.session_state.nome_usuario = ""
-
 if "perfil_usuario" not in st.session_state:
-
     st.session_state.perfil_usuario = ""
-
 if "go_to_base" not in st.session_state:
-
     st.session_state.go_to_base = False
-
 if "base_filters" not in st.session_state:
-
     st.session_state.base_filters = {}
 
-
-
 # --- LEITURA SEGURA DE COOKIE (TRAVA F5) ---
-
 if not st.session_state.logado:
-
     try:
-
         # Puxa o e-mail armazenado no cookie do navegador
-
         cookie_usuario = controller.get("user_session_email")
-
         
-
         if cookie_usuario and cookie_usuario in USUARIOS:
-
             st.session_state.logado = True
-
             st.session_state.usuario = cookie_usuario
-
             st.session_state.nome_usuario = USUARIO_NOME.get(cookie_usuario, cookie_usuario)
-
             if cookie_usuario in EMAILS_SUPERVISAO:
-
                 st.session_state.perfil_usuario = "Supervisão"
-
             else:
-
                 st.session_state.perfil_usuario = "Colaborador"
-
             st.rerun()
-
     except Exception:
-
         # Evita falhas caso o componente do cookie ainda esteja renderizando
-
         pass
-
-
-
 
 
 def logout():
-
     """Função responsável por deslogar o utilizador e limpar a sessão/cookies"""
-
     st.session_state.logado = False
-
     st.session_state.usuario = ""
-
     st.session_state.nome_usuario = ""
-
     st.session_state.perfil_usuario = ""
-
     
-
     # Remove o e-mail guardado nos cookies do navegador
-
     try:
-
         controller.remove("user_session_email")
-
     except Exception:
-
         pass
-
     st.rerun()
 
 
-
-
-
 def login():
-
     # Injeta a técnica de fixação absoluta com a paleta de cores oficial da LEV
-
     st.markdown(
-
         """
-
         <style>
-
             /* Esconde absolutamente tudo o que é nativo do Streamlit */
-
             [data-testid="stHeader"], #MainMenu, footer, [data-testid="stMainHeader"] {
-
                 visibility: hidden !important; 
-
                 display: none !important;
-
             }
-
             [data-testid="stSidebar"] {display: none !important;}
-
             
-
             /* Tira a rolagem do navegador para fixar o ecrã */
-
             body, .stApp {
-
                 overflow: hidden !important;
-
                 height: 100vh !important;
-
             }
-
-
 
             /* Força o bloco de colunas a colar no teto e no chão do ecrã */
-
             [data-testid="stHorizontalBlock"] {
-
                 position: fixed !important;
-
                 top: 0px !important;
-
                 left: 0px !important;
-
                 width: 100vw !important;
-
                 height: 100vh !important;
-
                 gap: 0px !important;
-
                 margin: 0px !important;
-
                 padding: 0px !important;
-
                 z-index: 999999 !important;
-
                 align-items: stretch !important;
-
                 background-color: #ffffff !important;
-
             }
-
             
-
             /* Garante que as colunas internas herdem a altura inteira */
-
             [data-testid="column"] {
-
                 height: 100vh !important;
-
                 padding: 0px !important;
-
                 margin: 0px !important;
-
             }
-
             
-
             /* COLUNA DA ESQUERDA (FORMULÁRIO): Centralização vertical absoluta */
-
             [data-testid="stHorizontalBlock"] > div:first-child {
-
                 background-color: #ffffff !important;
-
                 padding: 0% 8% !important;
-
                 display: flex !important;
-
                 flex-direction: column !important;
-
                 justify-content: center !important;
-
                 height: 100vh !important;
-
                 box-sizing: border-box !important;
-
             }
-
             
-
             /* COLUNA DA DIREITA (IMAGEM) */
-
             [data-testid="stHorizontalBlock"] > div:last-child {
-
                 height: 100vh !important;
-
                 overflow: hidden !important;
-
                 padding: 0px !important;
-
                 margin: 0px !important;
-
             }
-
             
-
             /* Força a foto a preencher tudo perfeitamente */
-
             [data-testid="stHorizontalBlock"] > div:last-child img {
-
                 object-fit: cover !important;
-
                 height: 100vh !important;
-
                 width: 100% !important;
-
                 margin: 0px !important;
-
                 padding: 0px !important;
-
             }
-
             
-
             /* BOTÃO PREVIEW: Corrigido para o roxo oficial da identidade LEV */
-
             div.stButton > button {
-
                 background-color: #6134b2 !important; /* Roxo oficial LEV */
-
                 color: white !important;
-
                 border-radius: 8px !important;
-
                 padding: 12px 24px !important;
-
                 font-weight: 600 !important;
-
                 border: none !important;
-
                 width: 100% !important;
-
                 margin-top: 20px;
-
                 box-shadow: 0 4px 12px rgba(97, 52, 178, 0.2);
-
                 transition: all 0.2s ease-in-out;
-
             }
-
             div.stButton > button:hover {
-
                 background-color: #4c2692 !important; /* Roxo ligeiramente mais escuro no hover */
-
                 box-shadow: 0 6px 15px rgba(97, 52, 178, 0.3);
-
             }
-
-
 
             /* INPUTS REFINADOS: Caixa de texto limpa */
-
             div[data-testid="stTextInput"] input {
-
                 border-radius: 8px !important;
-
                 border: 1.5px solid #e2e8f0 !important;
-
                 padding: 10px 14px !important;
-
                 background-color: #f8fafc !important;
-
                 transition: all 0.2s ease-in-out;
-
             }
-
             
-
             /* FOCO DOS INPUTS: Acende em roxo ao clicar para digitar igual a sistemas modernos */
-
             div[data-testid="stTextInput"] input:focus {
-
                 border-color: #6134b2 !important;
-
                 box-shadow: 0 0 0 3px rgba(97, 52, 178, 0.15) !important;
-
                 background-color: #ffffff !important;
-
             }
-
         </style>
-
         """,
-
         unsafe_allow_html=True
-
     )
 
-
-
     # Divide o ecrã (45% para o formulário, 55% para a imagem)
-
     col_form, col_imagem = st.columns([45, 55])
 
-
-
     # --- COLUNA DA ESQUERDA: FORMULÁRIO CENTRALIZADO ---
-
     with col_form:
-
-        # Logo Oficial Roxo da LEV
-
-        st.image(r"Z:\SUBSTABELECIDO\Sistema_Sub\Fotos\LOGO LEV ROXO.png", width=120)
-
+        # Logo Oficial Roxo da LEV (Usando caminho relativo local)
+        try:
+            st.image("logo.png", width=120)
+        except Exception:
+            pass
         
-
         # Título atualizado com a cor roxa oficial da LEV (#6134b2)
-
         st.markdown("<h2 style='color:#6134b2; margin-top:20px; margin-bottom:5px; font-weight:700; font-family: sans-serif; font-size: 28px;'>Gestão de Substabelecidos</h2>", unsafe_allow_html=True)
-
         st.markdown("<p style='color:#64748b; font-size:14px; margin-bottom:25px; font-family: sans-serif;'>Seja bem-vindo! Insira seus dados para acessar o painel.</p>", unsafe_allow_html=True)
-
         
-
         # Inputs oficiais de login
-
         usuario = st.text_input("E-mail corporativo", placeholder="nome@empresa.com.br").strip().lower()
-
         senha = st.text_input("Sua senha", type="password", placeholder="••••••••")
 
-
-
         # Clique do botão oficial
-
         if st.button("Entrar no Sistema"):
-
             if usuario in USUARIOS and USUARIOS[usuario] == senha:
-
                 st.session_state.logado = True
-
                 st.session_state.usuario = usuario
-
                 st.session_state.nome_usuario = USUARIO_NOME.get(usuario, usuario)
-
                 
-
                 if usuario in EMAILS_SUPERVISAO:
-
                     st.session_state.perfil_usuario = "Supervisão"
-
                 else:
-
                     st.session_state.perfil_usuario = "Colaborador"
-
                 
-
                 controller.set("user_session_email", usuario)
-
                 st.rerun()
-
             else:
-
                 st.error("⚠️ Login ou senha inválidos.")
-
                 
-
         # Rodapé corporativo
-
         st.markdown("<p style='text-align:center; color:#94a3b8; font-size:11px; margin-top:40px; font-family: sans-serif;'>&copy; 2026 LEV. Todos os direitos reservados.</p>", unsafe_allow_html=True)
 
-
-
     # --- COLUNA DA DIREITA: IMAGEM FIXA NO TOPO ---
-
     with col_imagem:
-
-        st.image(
-
-            r"Z:\SUBSTABELECIDO\Sistema_Sub\Fotos\FOTO SIMPLICIDADE.jpg", 
-
-            use_container_width=True
-
-        ) 
+        try:
+            st.image("foto_simplicidade.jpg", use_container_width=True)
+        except Exception:
+            st.warning("Imagem de fundo não encontrada.")
 
 # =========================================================
 # LISTAS / REGRAS
